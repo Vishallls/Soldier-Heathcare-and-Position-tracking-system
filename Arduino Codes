@@ -1,0 +1,82 @@
+Final Code :
+#define BLYNK_TEMPLATE_ID "TMPL3_OHnL9s4"
+#define BLYNK_TEMPLATE_NAME "minor1"
+
+#include <WiFi.h>
+#include <BlynkSimpleEsp32.h>
+#include <TinyGPS++.h>
+
+// Blynk Auth Token
+char auth[] = "SxA3b0YhAfynineEbv3sxkvHzMGfOj7x";
+
+// Wi-Fi credentials
+char ssid[] = "Vishal";           // Replace with your Wi-Fi network name
+char pass[] = "123456789";        // Replace with your Wi-Fi password
+
+// Pins for GPS module
+#define GPS_RX_PIN 16  // ESP32 pin connected to GPS RX
+#define GPS_TX_PIN 17  // ESP32 pin connected to GPS TX
+
+// Pin for LM35 temperature sensor
+#define LM35_PIN 36    // ESP32 ADC pin connected to LM35 (GPIO36)
+
+// TinyGPS++ object
+TinyGPSPlus gps;
+
+// Initialize Serial1 for GPS communication
+HardwareSerial gpsSerial(1);
+
+// Blynk Timer object
+BlynkTimer timer;
+
+void setup() {
+    // Start the serial monitor for debugging
+    Serial.begin(115200);
+
+    // Start GPS serial communication
+    gpsSerial.begin(115200, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+
+    // Initialize Blynk connection
+    Blynk.begin(auth, ssid, pass);
+
+    // Set up a timer to send sensor data to Blynk every 5 seconds
+    timer.setInterval(5000L, sendSensorData);
+
+    Serial.println("Setup complete. Starting Blynk and GPS communication.");
+}
+
+void sendSensorData() {
+    int analogValue = analogRead(LM35_PIN);
+    float temperatureC = (analogValue * 3.3 / 4095.0) * 100.0; // ESP32 ADC is 12-bit (0-4095)
+
+    // Send temperature to Blynk
+    Blynk.virtualWrite(V0, temperatureC);  // V0 is the virtual pin for temperature data
+    Serial.print("Temperature: ");
+    Serial.print(temperatureC);
+    Serial.println(" °C");
+
+    while (gpsSerial.available() > 0) {
+        char c = gpsSerial.read();
+        gps.encode(c);
+    }
+
+    if (gps.location.isUpdated()) {
+        float latitude = gps.location.lat();
+        float longitude = gps.location.lng();
+
+        Blynk.virtualWrite(V1, latitude);  // V1 is the virtual pin for latitude
+        Blynk.virtualWrite(V2, longitude); // V2 is the virtual pin for longitude
+
+        Serial.print("Latitude: ");
+        Serial.print(latitude, 6);
+        Serial.print(" Longitude: ");
+        Serial.println(longitude, 6);
+    } else {
+        Serial.println("Waiting for valid GPS data...");
+    }
+}
+
+void loop() {
+    Blynk.run();  
+    timer.run();  
+}
